@@ -54,7 +54,7 @@ namespace apiEv2oct27.Controllers
 
 
         /*
- ------------------------------- DATOS DE PRUEBA ---------------------------------------
+ ------------------------------- DATOS DE PRUEBA para agregar venta ---------------------------------------
  {
   "idVenta": 0,
   "idProducto": 1,
@@ -86,7 +86,7 @@ namespace apiEv2oct27.Controllers
         public IActionResult GuardarVenta([FromBody] Ventum venta)
         {
             try
-            {// no esta funcionando bien LAS VALIDACIONES REVISAR
+            {
                 if (venta == null)
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "La venta proporcionada es nula." });
@@ -116,18 +116,16 @@ namespace apiEv2oct27.Controllers
                     return BadRequest(new { mensaje = "ERROR", respuesta = "El estado es inválido." });
                 }
                 
-                    // Validar si el usuario existe y obtener su estado
                     var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == venta.NomUsuario);
                     if (usuarioExistente == null)
                     {
                         return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario ya está utilizado o no existe." });
                     }
-                    else if (usuarioExistente.Estado == 0) // Suponiendo que 0 es el estado "inhabilitado"
+                    else if (usuarioExistente.Estado == 0) 
                     {
                         return BadRequest(new { mensaje = "ERROR", respuesta = "Usuario inhabilitado, imposible crear venta." });
                     }
 
-                    // Obtener el precio del producto
                     var producto = dbcontext.Productos.FirstOrDefault(p => p.IdProducto == venta.IdProducto);
                     if (producto == null)
                     {
@@ -168,19 +166,19 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                // Validación de campos vacíos o nulos
+                
                 if (producto == null)
                     return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "El producto enviado es nulo." });
 
                 if (string.IsNullOrEmpty(producto.DescProducto))
                     return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "La descripción del producto no puede estar vacía." });
 
-                if (producto.Precio <= 0) // Asumiendo que el precio no puede ser negativo o cero
+                if (producto.Precio <= 0) 
                     return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "El precio del producto es inválido." });
 
                 Producto inserto = new Producto
                 {
-                    // IdProducto se genera automáticamente en la base de datos
+                    
                     DescProducto = producto.DescProducto,
                     Precio = producto.Precio
                 };
@@ -208,13 +206,13 @@ namespace apiEv2oct27.Controllers
                     return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario proporcionado es nulo." });
                 }
 
-                // Validar que los campos no estén vacíos
+                
                 if (string.IsNullOrWhiteSpace(usuario.NomUsuario) || string.IsNullOrWhiteSpace(usuario.Password))
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre de usuario y la contraseña no pueden estar vacíos." });
                 }
 
-                // Validar si el usuario ya existe en la base de datos
+                
                 var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == usuario.NomUsuario);
                 if (usuarioExistente != null)
                 {
@@ -292,7 +290,7 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                // Obtener todos los usuarios
+                
                 var usuarios = dbcontext.Usuarios.Select(u => new UsuarioEstadoResponse
                 {
                     NomUsuario = u.NomUsuario,
@@ -397,20 +395,20 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                // Buscar la venta en la base de datos por el ID proporcionado
+                
                 var venta = dbcontext.Venta.FirstOrDefault(v => v.IdVenta == idVenta);
                 if (venta == null)
                 {
                     return NotFound(new { mensaje = "ERROR", respuesta = "Venta no encontrada." });
                 }
 
-                // Verificar que el estado proporcionado sea válido
+                
                 if (estado != 0 && estado != 1)
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "Estado inválido. Solo se aceptan valores 0 o 1." });
                 }
 
-                // Cambiar el estado de la venta
+                
                 venta.Estado = estado;
                 dbcontext.Update(venta);
                 dbcontext.SaveChanges();
@@ -540,13 +538,13 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                // Validar que el ID proporcionado sea válido
+                
                 if (id <= 0)
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "ID de producto inválido." });
                 }
 
-                // Buscar el producto en la base de datos
+                
                 var productoExistente = dbcontext.Productos.FirstOrDefault(p => p.IdProducto == id);
                 if (productoExistente == null)
                 {
