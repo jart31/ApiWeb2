@@ -21,17 +21,29 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                List<Ventum> lista = new List<Ventum>();
-                //lista = dbcontext.Venta.ToList();
-              //  lista = dbcontext.Venta
-                // .Include(v => v.IdProductoNavigation)
-                 //.Include(v => v.NomUsuarioNavigation)
-                 //.ToList();
-                 lista = dbcontext.Venta.FromSqlRaw("SELECT * FROM VENTA").ToList();
+                var ventas = dbcontext.Venta.ToList();
+                List<object> listaResultados = new List<object>();
 
+                foreach (var venta in ventas)
+                {
+                    var usuario = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == venta.NomUsuario);
+                    var producto = dbcontext.Productos.FirstOrDefault(p => p.IdProducto == venta.IdProducto);
 
+                    if (usuario == null || producto == null) continue;
 
-                return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = lista });
+                    var estadoTexto = venta.Estado == 0 ? "anulada" : "realizada";
+
+                    listaResultados.Add(new
+                    {
+                        NombreUsuario = usuario.NomUsuario,
+                        Producto = producto.DescProducto,
+                        Precio = producto.Precio,
+                        Cantidad = venta.Cantidad,
+                        Total = venta.Total,
+                        Estado = estadoTexto
+                    });
+                }
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = listaResultados });
             }
             catch (Exception ex)
             {
@@ -40,8 +52,37 @@ namespace apiEv2oct27.Controllers
             }
         }
 
+
+        /*
+ ------------------------------- DATOS DE PRUEBA ---------------------------------------
+ {
+  "idVenta": 0,
+  "idProducto": 1,
+  "nomUsuario": "juan",
+  "cantidad": 1,
+  "total": 1000,
+  "fechaVenta": "2023-10-25T04:37:34.168Z",
+  "estado": 1,
+  "idProductoNavigation": {
+    "idProducto": 1,
+    "descProducto": "pelota",
+    "precio": 1000,
+    "venta": []
+  },
+  "nomUsuarioNavigation": {
+    "nomUsuario": "juan",
+    "password": "123",
+    "estado": 1,
+    "venta": []
+  }
+}
+
+ 
+ */
+
         [HttpPost]
         [Route("GuardarVenta")]
+
         public IActionResult GuardarVenta([FromBody] Ventum venta)
         {
             try
@@ -79,7 +120,7 @@ namespace apiEv2oct27.Controllers
                     var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == venta.NomUsuario);
                     if (usuarioExistente == null)
                     {
-                        return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario ya está utilizado." });
+                        return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario ya está utilizado o no existe." });
                     }
                     else if (usuarioExistente.Estado == 0) // Suponiendo que 0 es el estado "inhabilitado"
                     {
@@ -127,22 +168,35 @@ namespace apiEv2oct27.Controllers
         {
             try
             {
-                Producto inserto = new Producto();
-                inserto.IdProducto = producto.IdProducto;
-                inserto.DescProducto = producto.DescProducto;
-                inserto.Precio = producto.Precio;
+                // Validación de campos vacíos o nulos
+                if (producto == null)
+                    return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "El producto enviado es nulo." });
+
+                if (string.IsNullOrEmpty(producto.DescProducto))
+                    return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "La descripción del producto no puede estar vacía." });
+
+                if (producto.Precio <= 0) // Asumiendo que el precio no puede ser negativo o cero
+                    return StatusCode(StatusCodes.Status400BadRequest, new { mensaje = "ERROR", respuesta = "El precio del producto es inválido." });
+
+                Producto inserto = new Producto
+                {
+                    // IdProducto se genera automáticamente en la base de datos
+                    DescProducto = producto.DescProducto,
+                    Precio = producto.Precio
+                };
+
                 dbcontext.Add(inserto);
                 dbcontext.SaveChanges();
-              
 
                 return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = "correcto" });
             }
             catch (Exception ex)
             {
-
-                return StatusCode(StatusCodes.Status200OK, new { mensaje = "ERROR", respuesta = ex.Message });
+                var innerMessage = ex.InnerException?.Message ?? "No inner exception";
+                return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = innerMessage });
             }
         }
+//------------------ AGREGAR USUARIO
         [HttpPost]
         [Route("AgregarUsuario")]
         public IActionResult AgregarUsuario([FromBody] Usuario usuario)
@@ -153,30 +207,35 @@ namespace apiEv2oct27.Controllers
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario proporcionado es nulo." });
                 }
-                else
+
+                // Validar que los campos no estén vacíos
+                if (string.IsNullOrWhiteSpace(usuario.NomUsuario) || string.IsNullOrWhiteSpace(usuario.Password))
                 {
-                    // Validar si el usuario ya existe en la base de datos
-                    var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == usuario.NomUsuario);
-                    if (usuarioExistente != null)
-                    {
-                        return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario ya está utilizado." });
-                    }
-
-                    Usuario usuario1 = new Usuario();
-                    usuario1.NomUsuario = usuario.NomUsuario;
-                    usuario1.Password = usuario.Password;
-                    usuario1.Estado = usuario.Estado;
-                    dbcontext.Usuarios.Add(usuario);
-                    dbcontext.SaveChanges();
-
-                    return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = "Usuario creado correctamente." });
+                    return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre de usuario y la contraseña no pueden estar vacíos." });
                 }
+
+                // Validar si el usuario ya existe en la base de datos
+                var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == usuario.NomUsuario);
+                if (usuarioExistente != null)
+                {
+                    return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario ya está utilizado." });
+                }
+
+                Usuario usuario1 = new Usuario();
+                usuario1.NomUsuario = usuario.NomUsuario;
+                usuario1.Password = usuario.Password;
+                usuario1.Estado = usuario.Estado;
+                dbcontext.Usuarios.Add(usuario);
+                dbcontext.SaveChanges();
+
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = "Usuario creado correctamente." });
             }
             catch (Exception ex)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = ex.Message });
             }
         }
+//------------------ EDITAR ESTADO DE USUARIO
         [HttpPut]
         [Route("EditarEstadoUsuario")]
         public IActionResult EditarEstadoUsuario([FromBody] EditarEstadoUsuarioRequest request)
@@ -226,7 +285,7 @@ namespace apiEv2oct27.Controllers
             public string NomUsuario { get; set; }
             public int Estado { get; set; }
         }
-
+//------------------ OBTENER USUARIOS POR ESTADO
         [HttpGet]
         [Route("ObtenerUsuariosYEstado")]
         public IActionResult ObtenerUsuariosYEstado()
@@ -253,7 +312,7 @@ namespace apiEv2oct27.Controllers
             public string NomUsuario { get; set; }
             public string Estado { get; set; }
         }
-
+//------------------ OBTENER PRODUCTOS 
         [HttpGet]
         [Route("ObtenerProductos")]
         public IActionResult ObtenerProductos(int? id = null)
@@ -264,7 +323,7 @@ namespace apiEv2oct27.Controllers
 
                 if (id.HasValue)
                 {
-                    // Buscar producto por ID específico
+                    
                     var producto = dbcontext.Productos.FirstOrDefault(p => p.IdProducto == id.Value);
 
                     if (producto == null)
@@ -276,7 +335,7 @@ namespace apiEv2oct27.Controllers
                 }
                 else
                 {
-                    // Listar todos los productos
+                    
                     productos = dbcontext.Productos.ToList();
                 }
 
@@ -287,47 +346,51 @@ namespace apiEv2oct27.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = ex.Message });
             }
         }
-
-        // no esta funcionando bien REVISAR
+//------------------ OBTENER VENTAS POR ESTADO
         [HttpGet]
-        [Route("ListarVentas")]
-        public IActionResult ListarVentas(int? estado = null, string nomUsuario = null)
+        [Route("BuscarVentasPorEstado")]
+        public IActionResult BuscarVentasPorEstado(int? estado)
         {
             try
             {
-                // Filtrado inicial: obtener todas las ventas
-                var ventasQuery = dbcontext.Venta.AsQueryable();
-
-                // Filtrar por estado si se proporciona
-                if (estado.HasValue)
+                if (!estado.HasValue)
                 {
-                    ventasQuery = ventasQuery.Where(v => v.Estado == estado.Value);
+                    return BadRequest(new { mensaje = "ERROR", respuesta = "El estado es requerido." });
                 }
 
-                // Filtrar por nombre de usuario si se proporciona
-                if (!string.IsNullOrWhiteSpace(nomUsuario))
-                {
-                    ventasQuery = ventasQuery.Where(v => v.NomUsuario == nomUsuario);
-                }
+                var ventasPorEstado = dbcontext.Venta.Where(v => v.Estado == estado).ToList();
+                
 
-                // Proyección: seleccionar solo los campos deseados
-                var ventasListadas = ventasQuery.Select(v => new
-                {
-                    NombreUsuario = v.NomUsuario,
-                    Producto = v.IdProductoNavigation.DescProducto, // Suponiendo que esta es la descripción del producto
-                    Precio = v.IdProductoNavigation.Precio,
-                    Cantidad = v.Cantidad,
-                    Total = v.Total,
-                    Estado = v.Estado == 0 ? "anulada" : "realizada"
-                }).ToList();
-
-                return Ok(new { mensaje = "OK", respuesta = ventasListadas });
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = ventasPorEstado });
             }
             catch (Exception ex)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = ex.Message });
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "ERROR", respuesta = ex.Message });
             }
         }
+//------------------ BUSCAR VENTAS POR USUARIO 
+        [HttpGet]
+        [Route("BuscarVentasPorUsuario")]
+        public IActionResult BuscarVentasPorUsuario(string nomUsuario)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(nomUsuario))
+                {
+                    return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre de usuario es requerido." });
+                }
+
+                var ventasPorUsuario = dbcontext.Venta.Where(v => v.NomUsuario == nomUsuario).ToList();
+                
+
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "OK", respuesta = ventasPorUsuario });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status200OK, new { mensaje = "ERROR", respuesta = ex.Message });
+            }
+        }
+        //------------------ EDITAR ESTADO DE VENTA
         [HttpPut]
         [Route("EditarEstadoVenta")]
         public IActionResult EditarEstadoVenta(int idVenta, int estado)
@@ -360,32 +423,30 @@ namespace apiEv2oct27.Controllers
             }
         }
 
-        // no esta funcionando bien REVISAR
+        //------------------ EDITAR USUARIO
         [HttpPut]
         [Route("EditarUsuario")]
-        public IActionResult EditarUsuario([FromBody] Usuario usuarioEditado)
+        public IActionResult EditarUsuario(string nomUsuario, string password, int estado)
         {
+            // Validaciones iniciales
+            if (string.IsNullOrWhiteSpace(nomUsuario))
+            {
+                return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre del usuario no puede estar vacío." });
+            }
+
             try
             {
-                if (usuarioEditado == null || string.IsNullOrEmpty(usuarioEditado.NomUsuario))
-                {
-                    return BadRequest(new { mensaje = "ERROR", respuesta = "El usuario proporcionado es inválido o está vacío." });
-                }
+                var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == nomUsuario);
 
-                // Buscar el usuario en la base de datos por el Nombre proporcionado
-                var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == usuarioEditado.NomUsuario);
                 if (usuarioExistente == null)
                 {
-                    return NotFound(new { mensaje = "ERROR", respuesta = "Usuario no encontrado." });
+                    return NotFound(new { mensaje = "ERROR", respuesta = "No se encontró el usuario con el nombre especificado." });
                 }
 
-                // Actualizar los campos del usuario
-                usuarioExistente.Estado = usuarioEditado.Estado;
+                usuarioExistente.Estado = estado;
+                usuarioExistente.Password = password;
 
-                // Si deseas editar otros campos, simplemente los agregas aquí, por ejemplo:
-                // usuarioExistente.Password = usuarioEditado.Password;
-
-                dbcontext.Update(usuarioExistente);
+                dbcontext.Entry(usuarioExistente).State = EntityState.Modified;
                 dbcontext.SaveChanges();
 
                 return Ok(new { mensaje = "OK", respuesta = "Usuario actualizado correctamente." });
@@ -395,18 +456,22 @@ namespace apiEv2oct27.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = ex.Message });
             }
         }
+
+
+        //---------------------- ELIMINAR USUARIO
         [HttpDelete]
         [Route("EliminarUsuario/{nomUsuario}")]
         public IActionResult EliminarUsuario(string nomUsuario)
         {
             try
             {
+                
                 if (string.IsNullOrEmpty(nomUsuario))
                 {
                     return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre de usuario proporcionado es inválido o está vacío." });
                 }
 
-                // Buscar el usuario en la base de datos por el Nombre proporcionado
+            
                 var usuarioExistente = dbcontext.Usuarios.FirstOrDefault(u => u.NomUsuario == nomUsuario);
                 if (usuarioExistente == null)
                 {
@@ -423,36 +488,40 @@ namespace apiEv2oct27.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { mensaje = "ERROR", respuesta = ex.Message });
             }
         }
-        // no esta funcionando bien REVISAR
+        //------------------ EDITAR PRODUCTO
         [HttpPut]
         [Route("EditarProducto")]
-        public IActionResult EditarProducto([FromBody] Producto productoEditado)
+        public IActionResult EditarProducto(int id, string nombre, int precio)
         {
+            
+            if (id <= 0)
+            {
+                return BadRequest(new { mensaje = "ERROR", respuesta = "El ID proporcionado no es válido." });
+            }
+
+            if (string.IsNullOrWhiteSpace(nombre))
+            {
+                return BadRequest(new { mensaje = "ERROR", respuesta = "El nombre del producto no puede estar vacío." });
+            }
+
+            if (precio <= 0) 
+            {
+                return BadRequest(new { mensaje = "ERROR", respuesta = "El precio proporcionado no es válido." });
+            }
+
             try
             {
-                if (productoEditado == null)
+                Producto? prdt = dbcontext.Productos.FirstOrDefault(a => a.IdProducto == id);
+
+                if (prdt == null)
                 {
-                    return BadRequest(new { mensaje = "ERROR", respuesta = "El producto proporcionado es nulo." });
+                    return NotFound(new { mensaje = "ERROR", respuesta = "No se encontró el producto con el ID especificado." });
                 }
 
-                // Validar campos requeridos
-                if (productoEditado.IdProducto <= 0 || string.IsNullOrEmpty(productoEditado.DescProducto) || productoEditado.Precio <= 0)
-                {
-                    return BadRequest(new { mensaje = "ERROR", respuesta = "Datos del producto inválidos o incompletos." });
-                }
+                prdt.DescProducto = nombre;
+                prdt.Precio = precio;
 
-                // Buscar el producto en la base de datos
-                var productoExistente = dbcontext.Productos.FirstOrDefault(p => p.IdProducto == productoEditado.IdProducto);
-                if (productoExistente == null)
-                {
-                    return NotFound(new { mensaje = "ERROR", respuesta = "Producto no encontrado." });
-                }
-
-                // Actualizar datos
-                productoExistente.DescProducto = productoEditado.DescProducto;
-                productoExistente.Precio = productoEditado.Precio;
-
-                dbcontext.Update(productoExistente);
+                dbcontext.Entry(prdt).State = EntityState.Modified;
                 dbcontext.SaveChanges();
 
                 return Ok(new { mensaje = "OK", respuesta = "Producto editado correctamente." });
@@ -463,7 +532,8 @@ namespace apiEv2oct27.Controllers
             }
         }
 
-        // no esta funcionando bien REVISAR
+
+        //------------------- ELIMINAR PRODUCTO
         [HttpDelete]
         [Route("EliminarProducto/{id}")]
         public IActionResult EliminarProducto(int id)
@@ -497,29 +567,3 @@ namespace apiEv2oct27.Controllers
     }
 }
 
-/*
- 
- {
-  "idVenta": 0,
-  "idProducto": 1,
-  "nomUsuario": "juan",
-  "cantidad": 1,
-  "total": 1000,
-  "fechaVenta": "2023-10-25T04:37:34.168Z",
-  "estado": 1,
-  "idProductoNavigation": {
-    "idProducto": 1,
-    "descProducto": "pelota",
-    "precio": 1000,
-    "venta": []
-  },
-  "nomUsuarioNavigation": {
-    "nomUsuario": "juan",
-    "password": "123",
-    "estado": 1,
-    "venta": []
-  }
-}
-
- 
- */

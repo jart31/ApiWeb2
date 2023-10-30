@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "OVP4GMFs4nEkl7InFEMEJS4OOwIUPQLYVFOvi6PZEEIfQb4liVz1CdQ00/GWCGOoFh8IfFi6w5kIqBqVXKp+sg==",
+  "dgSpecHash": "W2yyMqH1W4ZQ2fvxBo9Bcrt0AZBB/UZpi/Y/WI/r2Qce+BGlGTLySWNXMzNWrVd+hmsXbrv75oE9LbZJb44xTw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\JART\\Desktop\\apiEv2oct27\\apiEv2oct27\\apiEv2oct27.csproj",
+  "projectFilePath": "C:\\Users\\JART\\Desktop\\Apiweb\\ApiWeb2\\apiEv2oct27\\apiEv2oct27.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\JART\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",
     "C:\\Users\\JART\\.nuget\\packages\\azure.identity\\1.7.0\\azure.identity.1.7.0.nupkg.sha512",
